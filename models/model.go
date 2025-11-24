@@ -124,4 +124,5 @@ func init() {
 
 	// create table
 	orm.RunSyncdb("default", false, true)
+	orm.Debug = true
 }
