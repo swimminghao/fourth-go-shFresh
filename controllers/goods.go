@@ -193,3 +193,16 @@ func (this *GoodsController) ShowGoodsList() {
 
 	this.TplName = "list.html"
 }
+
+//商品搜索
+func (this GoodsController) HanleSearch() {
+	goodsName := this.GetString("goodsName")
+	o := orm.NewOrm()
+	var goods []models.GoodsSKU
+	if goodsName == "" {
+		o.QueryTable("GoodsSKU").All(&goods)
+		this.Data["goods"] = goods
+		ShowLaout(&this.Controller)
+		this.TplName = "search.html"
+	}
+}

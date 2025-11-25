@@ -27,6 +27,8 @@ func init() {
 	beego.Router("/goodsDetail", &controllers.GoodsController{}, "get:ShowGoodsDetail")
 	//商品列表页
 	beego.Router("/goodsList", &controllers.GoodsController{}, "get:ShowGoodsList")
+	//商品搜索
+	beego.Router("/goodsSearch", &controllers.GoodsController{}, "get:HandleSearch")
 
 }
 
