@@ -195,7 +195,7 @@ func (this *GoodsController) ShowGoodsList() {
 }
 
 //商品搜索
-func (this GoodsController) HanleSearch() {
+func (this *GoodsController) HandleSearch() {
 	goodsName := this.GetString("goodsName")
 	o := orm.NewOrm()
 	var goods []models.GoodsSKU
@@ -204,5 +204,11 @@ func (this GoodsController) HanleSearch() {
 		this.Data["goods"] = goods
 		ShowLaout(&this.Controller)
 		this.TplName = "search.html"
+		return
 	}
+	o.QueryTable("GoodsSKU").Filter("Name__icontains", goodsName).All(&goods)
+	this.Data["goods"] = goods
+	beego.Info("goodsSearch: ", goods)
+	ShowLaout(&this.Controller)
+	this.TplName = "search.html"
 }
