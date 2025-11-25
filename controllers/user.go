@@ -6,6 +6,7 @@ import (
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/utils"
+	"github.com/gomodule/redigo/redis"
 	"regexp"
 	"strconv"
 )
@@ -186,7 +187,27 @@ func (this *UserController) ShowUserCenterInfo() {
 	} else {
 		this.Data["addr"] = addr
 	}
+	//获取历史浏览记录`
+	conn, err := redis.Dial("tcp", "10.211.55.5:6379", redis.DialPassword("q123q123"))
+	defer conn.Close()
+	if err != nil {
+		beego.Info("redis连接错误")
+	}
+	user := models.User{Name: userName}
+	orm.Read(&user, "Name")
+	reply, err := conn.Do("lrange", "history_"+strconv.Itoa(user.Id), 0, 4)
+	//恢复原本函数
+	goodsIDs, _ := redis.Ints(reply, err)
+	var goodsSkus []models.GoodsSKU
+	for _, value := range goodsIDs {
+		var goods models.GoodsSKU
+		goods.Id = value
+		orm.Read(&goods)
+		goodsSkus = append(goodsSkus, goods)
+	}
 	beego.Info("用户详情bo:", addr)
+	this.Data["goodsSkus"] = goodsSkus
+	beego.Info("goodSkus:", goodsSkus)
 	this.Layout = "userCenterLayout.html"
 	this.TplName = "user_center_info.html"
 }

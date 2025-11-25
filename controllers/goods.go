@@ -6,6 +6,8 @@ import (
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
 	"github.com/astaxie/beego/orm"
+	"github.com/gomodule/redigo/redis"
+	"strconv"
 )
 
 type GoodsController struct {
@@ -78,6 +80,17 @@ func ToJSONStringSafe(data interface{}) string {
 	}
 	return string(jsonBytes)
 }
+func ShowLaout(this *beego.Controller) {
+	//查询类型
+	orm := orm.NewOrm()
+	var types []models.GoodsType
+	orm.QueryTable("GoodsType").All(&types)
+	this.Data["types"] = types
+	//获取用户信息
+	GetUser(this)
+	//指定layout
+	this.Layout = "goodsLayout.html"
+}
 
 //展示商品详情
 func (this *GoodsController) ShowGoodsDetail() {
@@ -94,9 +107,89 @@ func (this *GoodsController) ShowGoodsDetail() {
 	orm := orm.NewOrm()
 	var goodsSku models.GoodsSKU
 	goodsSku.Id = id
-	orm.Read(&goodsSku)
-
+	//orm.Read(&goodsSku)
+	orm.QueryTable("GoodsSKU").RelatedSel("GoodsType", "Goods").Filter("Id", id).One(&goodsSku)
+	//获取同类型时间靠前的两条商品数据
+	var goodsNew []models.GoodsSKU
+	orm.QueryTable("GoodsSKU").RelatedSel("GoodsType").Filter("GoodsType", goodsSku.GoodsType).OrderBy("Time").Limit(2, 0).All(&goodsNew)
+	//判断用户是否登录
+	userName := this.GetSession("userName")
+	if userName != nil {
+		user := models.User{Name: userName.(string)}
+		orm.Read(&user, "Name")
+		//添加历史浏览记录,用redis存储
+		conn, err := redis.Dial("tcp", "10.211.55.5:6379", redis.DialPassword("q123q123"))
+		defer conn.Close()
+		if err != nil {
+			beego.Info("redis连接错误")
+		}
+		//把以前相同商品的历史浏览记录删除
+		conn.Do("lrem", "history_"+strconv.Itoa(user.Id), 0, id)
+		//添加新的商品浏览记录
+		conn.Do("lpush", "history_"+strconv.Itoa(user.Id), id)
+	}
+	//添加历史记录
 	//返回
 	this.Data["goodsSku"] = goodsSku
+	this.Data["goodsNew"] = goodsNew
+	ShowLaout(&this.Controller)
 	this.TplName = "detail.html"
+}
+
+//展示商品列表页
+func (this *GoodsController) ShowGoodsList() {
+	id, err := this.GetInt("typeId")
+	if err != nil {
+		beego.Info("请求路径错误")
+		this.Redirect("/", 302)
+		return
+	}
+	//处理数据
+	ShowLaout(&this.Controller)
+	//获取新品`
+	o := orm.NewOrm()
+	var goodsNew []models.GoodsSKU
+	o.QueryTable("GoodsSKU").RelatedSel("GoodsType").Filter("GoodsType__Id", id).OrderBy("Time").Limit(2, 0).All(&goodsNew)
+	this.Data["goodsNew"] = goodsNew
+
+	// 分页参数
+	pageIndex, err := this.GetInt("pageIndex")
+	if err != nil || pageIndex < 1 {
+		pageIndex = 1
+	}
+	pageSize := 3
+
+	// 获取总记录数
+	count, _ := o.QueryTable("GoodsSKU").RelatedSel("GoodsType").Filter("GoodsType__Id", id).Count()
+
+	// 使用 CreatePagination 创建分页对象
+	pagination := CreatePagination(count, pageIndex, pageSize)
+
+	// 获取当前页数据
+	var goods []models.GoodsSKU
+	query := o.QueryTable("GoodsSKU").RelatedSel("GoodsType").Filter("GoodsType__Id", id)
+
+	// 排序处理
+	sort := this.GetString("sort")
+	switch sort {
+	case "price":
+		query = query.OrderBy("Price")
+		this.Data["sort"] = "price"
+	case "sale":
+		query = query.OrderBy("Sales")
+		this.Data["sort"] = "sale"
+	default:
+		this.Data["sort"] = ""
+	}
+
+	// 计算偏移量并查询数据
+	offset := (pagination.PageIndex - 1) * pagination.PageSize
+	query.Limit(pagination.PageSize, offset).All(&goods)
+
+	// 设置模板数据
+	this.Data["goods"] = goods
+	this.Data["pagination"] = pagination // 传递整个分页对象
+	this.Data["typeId"] = id
+
+	this.TplName = "list.html"
 }

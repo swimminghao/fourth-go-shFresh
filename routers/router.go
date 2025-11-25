@@ -25,6 +25,8 @@ func init() {
 	beego.Router("/user/userCenterSite", &controllers.UserController{}, "get:ShowUserCenterSite;post:HandleUserCenterSite")
 	//商品详情页面
 	beego.Router("/goodsDetail", &controllers.GoodsController{}, "get:ShowGoodsDetail")
+	//商品列表页
+	beego.Router("/goodsList", &controllers.GoodsController{}, "get:ShowGoodsList")
 
 }
 
